@@ -4,7 +4,10 @@ SELECT
     value 'ORIGINAL VALUE',
     numCartons 'EST CARTON COUNT',
     format ((stamp), 'dddd, dd MMM') 'DAY',
-    format ((stamp), 'HH:mm') 'TIME CLOSED',
+    format ((stamp), 'HH:mm') 'TIME',
+    format ((stamp), 'yyyy') 'YEAR CLOSED',
+    format ((stamp), 'MMM') 'MONTH CLOSED',
+    format ((stamp), 'dd') 'DAY CLOSED',
     CASE
         WHEN subtype = 'P' THEN 'PERFORMANCE'
         ELSE 'WD'
@@ -26,7 +29,8 @@ SELECT
 from
     NuminaData_BaseTables.dbo.HK_Numina_psOrders_raw
 where
-    orderStatus = 'closed' and stamp > DATEADD(WEEK, -1, GETDATE())
+    orderStatus = 'closed'
+    /* and stamp > DATEADD(WEEK, -1, GETDATE()) */
 group by
     stamp,
     orderId,
