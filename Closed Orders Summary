@@ -1,4 +1,3 @@
-/*CLOSED ORDERS SUMMARY SANS COO*/
 SELECT
     orderId 'REF #',
     billingName 'ACCOUNT',
@@ -27,7 +26,7 @@ SELECT
 from
     NuminaData_BaseTables.dbo.HK_Numina_psOrders_raw
 where
-    orderStatus = 'closed'
+    orderStatus = 'closed' and stamp > DATEADD(WEEK, -1, GETDATE())
 group by
     stamp,
     orderId,
