@@ -29,7 +29,7 @@ from
     join NuminaData_BaseTables.dbo.HK_Numina_psOrders_raw "O" on format (A.stamp, 'MMM-dd-yyyy, HH:mm') = format (O.stamp, 'MMM-dd-yyyy, HH:mm')
 where
     description like '%orderclose%'
-    and A.stamp > DATEADD(DAY, -1, GETDATE())
+    and A.stamp > DATEADD(WEEK, -1, GETDATE())
     and O.orderStatus = 'closed'
     and O.orderId =SUBSTRING (A.description,41,9)
 group by
