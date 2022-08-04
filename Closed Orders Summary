@@ -1,40 +1,128 @@
+/* A STORE II STORY OF CLOSED ORDERS */
+
+WITH CLOSED_ORDERS AS (
+    SELECT
+        orderId 'REF #',
+        SUBSTRING (billingName, 1, 15) 'ACCOUNT',
+        value 'ORIGINAL VALUE',
+        numCartons 'EST CARTON COUNT',
+        format ((stamp), 'dddd, dd MMM') 'DAY',
+        format ((stamp), 'HH:mm') 'TIME',
+        format ((stamp), 'yyyy') 'YEAR CLOSED',
+        format ((stamp), 'MMM') 'MONTH CLOSED',
+        format ((stamp), 'dd') 'DAY CLOSED',
+        CASE
+            WHEN subtype = 'P' THEN 'PERF'
+            ELSE 'WD'
+        END 'DEPARTMENT',
+        CASE
+            WHEN (format ((stamp), 'HH:mm')) BETWEEN '06:30'
+            AND '14:29' THEN 'FIRST'
+            WHEN (format ((stamp), 'HH:mm')) BETWEEN '14:30'
+            AND '21:59' THEN 'SECOND'
+            WHEN (format ((stamp), 'HH:mm')) BETWEEN '22:00'
+            AND '22:59' THEN 'SECOND + THIRD'
+            WHEN (format ((stamp), 'HH:mm')) BETWEEN '23:00'
+            AND '23:59' THEN 'THIRD'
+            WHEN (format ((stamp), 'HH:mm')) BETWEEN '00:00'
+            AND '04:59' THEN 'THIRD'
+            WHEN (format ((stamp), 'HH:mm')) BETWEEN '05:00'
+            AND '06:29' THEN 'FIRST + THIRD'
+        END 'SHIFT'
+    from
+        NuminaData_BaseTables.dbo.HK_Numina_psOrders_raw
+    where
+        orderStatus = 'closed'
+        /* and stamp > DATEADD(WEEK, -1, GETDATE()) */
+    group by
+        stamp,
+        orderId,
+        value,
+        billingName,
+        subtype,
+        numCartons
+),
+COMPLETE_PICKS AS (
+    SELECT
+        SUM(P.qty) 'QTY_PICKED',
+        O.orderId 'REF_#'
+    FROM
+        [NuminaData_BaseTables].[dbo].[HK_Numina_psPicks_raw] "P"
+        JOIN [NuminaData_BaseTables].[dbo].[HK_Numina_psOrderLines_raw] "L" on P.OrderLineSeq = L.OrderLineSeq
+        JOIN [NuminaData_BaseTables].[dbo].[HK_Numina_psOrders_raw] "O" on P.orderId = O.orderId
+    WHERE
+        P.status IN ('complete', 'qc')
+        AND P.pickable = 'true'
+        /*AND O.billingName <> 'AMAZON TEST ACCOUNT'*/
+    GROUP BY
+        O.orderId
+),
+TOTAL_PICKABLE AS (
+    SELECT
+        SUM(P.qty) 'QTY_PICKABLE',
+        O.orderId 'REF_#'
+    FROM
+        [NuminaData_BaseTables].[dbo].[HK_Numina_psPicks_raw] "P"
+        JOIN [NuminaData_BaseTables].[dbo].[HK_Numina_psOrderLines_raw] "L" on P.OrderLineSeq = L.OrderLineSeq
+        JOIN [NuminaData_BaseTables].[dbo].[HK_Numina_psOrders_raw] "O" on P.orderId = O.orderId
+    WHERE
+        P.pickable = 'true'
+        /*AND O.billingName <> 'AMAZON TEST ACCOUNT'*/
+    GROUP BY
+        O.orderId
+),
+COORDINATOR AS (
+    select
+        distinct UPPER (SUBSTRING(HK_Numina_adminLog_raw.[user], 1, 3)) as 'COO',
+        SUBSTRING(description, 41, 9) as 'REF #',
+        format (
+            (HK_Numina_adminLog_raw.stamp),
+            'MMM-dd-yyyy',
+            'en-US'
+        ) as 'DATE CLOSED'
+    from
+        [NuminaData_BaseTables].[dbo].[HK_Numina_adminLog_raw]
+    where
+        description like '%orderclose%'
+)
 SELECT
-    orderId 'REF #',
-    billingName 'ACCOUNT',
-    value 'ORIGINAL VALUE',
-    numCartons 'EST CARTON COUNT',
-    format ((stamp), 'dddd, dd MMM') 'DAY',
-    format ((stamp), 'HH:mm') 'TIME',
-    format ((stamp), 'yyyy') 'YEAR CLOSED',
-    format ((stamp), 'MMM') 'MONTH CLOSED',
-    format ((stamp), 'dd') 'DAY CLOSED',
-    CASE
-        WHEN subtype = 'P' THEN 'PERFORMANCE'
-        ELSE 'WD'
-    END 'DEPARTMENT',
-    CASE
-        WHEN (format ((stamp), 'HH:mm')) BETWEEN '06:30'
-        AND '14:29' THEN 'FIRST'
-        WHEN (format ((stamp), 'HH:mm')) BETWEEN '14:30'
-        AND '21:59' THEN 'SECOND'
-        WHEN (format ((stamp), 'HH:mm')) BETWEEN '22:00'
-        AND '22:59' THEN 'SECOND + THIRD'
-        WHEN (format ((stamp), 'HH:mm')) BETWEEN '23:00'
-        AND '23:59' THEN 'THIRD'
-        WHEN (format ((stamp), 'HH:mm')) BETWEEN '00:00'
-        AND '04:59' THEN 'THIRD'
-        WHEN (format ((stamp), 'HH:mm')) BETWEEN '05:00'
-        AND '06:29' THEN 'FIRST + THIRD'
-    END 'SHIFT'
-from
-    NuminaData_BaseTables.dbo.HK_Numina_psOrders_raw
-where
-    orderStatus = 'closed'
-    /* and stamp > DATEADD(WEEK, -1, GETDATE()) */
-group by
-    stamp,
-    orderId,
-    value,
-    billingName,
-    subtype,
-    numCartons
+    CO.DAY,
+    CO.SHIFT,
+    CO.DEPARTMENT,
+    CO.ACCOUNT,
+    CO.[REF #],
+    CO.[EST CARTON COUNT],
+    CO.[ORIGINAL VALUE],
+    CONVERT (
+        DECIMAL(7, 2),
+        (
+            CONVERT (DECIMAL(7, 2),(QTY_PICKED)) / CONVERT (DECIMAL(7, 2),(QTY_PICKABLE))
+        ) * 100
+    ) 'FILL RATE',
+    (
+        CONVERT (DECIMAL(7, 2),(QTY_PICKED)) / CONVERT (DECIMAL(7, 2),(QTY_PICKABLE))
+    ) * [ORIGINAL VALUE] 'EST CLOSE VALUE',
+    CONVERT (
+        DECIMAL(7, 2),
+        (
+            100 - (
+                CONVERT (DECIMAL(7, 2),(QTY_PICKED)) / CONVERT (DECIMAL(7, 2),(QTY_PICKABLE))
+            ) * 100
+        )
+    ) 'SHORT RATE',
+    (
+        [ORIGINAL VALUE] - (
+            CONVERT (DECIMAL(7, 2),(QTY_PICKED)) / CONVERT (DECIMAL(7, 2),(QTY_PICKABLE))
+        ) * [ORIGINAL VALUE]
+    ) 'EST SHORTS VALUE',
+    CO.TIME,
+    CR.COO
+FROM
+    COMPLETE_PICKS CP,
+    TOTAL_PICKABLE TP,
+    CLOSED_ORDERS CO,
+    COORDINATOR CR
+WHERE
+    CP.REF_# = TP.REF_#
+    AND TP.REF_# = CO.[REF #]
+    AND CO.[REF #] = CR.[REF #]
