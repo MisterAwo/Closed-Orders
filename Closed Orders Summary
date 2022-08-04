@@ -1,4 +1,4 @@
-/* A STORE II STORY OF CLOSED ORDERS */
+ /* A STORE II STORY OF CLOSED ORDERS */
 
 WITH CLOSED_ORDERS AS (
     SELECT
@@ -6,10 +6,10 @@ WITH CLOSED_ORDERS AS (
         SUBSTRING (billingName, 1, 15) 'ACCOUNT',
         value 'ORIGINAL VALUE',
         numCartons 'EST CARTON COUNT',
-        format ((stamp), 'dddd, dd MMM') 'DAY',
+        UPPER (format ((stamp), 'dddd, dd MMM')) 'DAY',
         format ((stamp), 'HH:mm') 'TIME',
         format ((stamp), 'yyyy') 'YEAR CLOSED',
-        format ((stamp), 'MMM') 'MONTH CLOSED',
+        UPPER (format ((stamp), 'MMM')) 'MONTH CLOSED',
         format ((stamp), 'dd') 'DAY CLOSED',
         CASE
             WHEN subtype = 'P' THEN 'PERF'
@@ -17,17 +17,17 @@ WITH CLOSED_ORDERS AS (
         END 'DEPARTMENT',
         CASE
             WHEN (format ((stamp), 'HH:mm')) BETWEEN '06:30'
-            AND '14:29' THEN 'FIRST'
+            AND '14:29' THEN 'I'
             WHEN (format ((stamp), 'HH:mm')) BETWEEN '14:30'
-            AND '21:59' THEN 'SECOND'
+            AND '21:59' THEN 'II'
             WHEN (format ((stamp), 'HH:mm')) BETWEEN '22:00'
-            AND '22:59' THEN 'SECOND + THIRD'
+            AND '22:59' THEN 'II+III'
             WHEN (format ((stamp), 'HH:mm')) BETWEEN '23:00'
-            AND '23:59' THEN 'THIRD'
+            AND '23:59' THEN 'III'
             WHEN (format ((stamp), 'HH:mm')) BETWEEN '00:00'
-            AND '04:59' THEN 'THIRD'
+            AND '04:59' THEN 'III'
             WHEN (format ((stamp), 'HH:mm')) BETWEEN '05:00'
-            AND '06:29' THEN 'FIRST + THIRD'
+            AND '06:29' THEN 'I+III'
         END 'SHIFT'
     from
         NuminaData_BaseTables.dbo.HK_Numina_psOrders_raw
@@ -87,6 +87,9 @@ COORDINATOR AS (
 )
 SELECT
     CO.DAY,
+	CO.[DAY CLOSED],
+	CO.[MONTH CLOSED],
+	CO.[YEAR CLOSED],
     CO.SHIFT,
     CO.DEPARTMENT,
     CO.ACCOUNT,
@@ -99,6 +102,7 @@ SELECT
             CONVERT (DECIMAL(7, 2),(QTY_PICKED)) / CONVERT (DECIMAL(7, 2),(QTY_PICKABLE))
         ) * 100
     ) 'FILL RATE',
+	95 'STD FILL RATE',
     (
         CONVERT (DECIMAL(7, 2),(QTY_PICKED)) / CONVERT (DECIMAL(7, 2),(QTY_PICKABLE))
     ) * [ORIGINAL VALUE] 'EST CLOSE VALUE',
