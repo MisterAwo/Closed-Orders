@@ -85,7 +85,7 @@ COORDINATOR AS (
     where
         description like '%orderclose%'
 )
-SELECT
+SELECT DISTINCT
     CO.DAY,
 	CO.[DAY CLOSED],
 	CO.[MONTH CLOSED],
